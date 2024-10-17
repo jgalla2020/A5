@@ -12,11 +12,11 @@ const { hasProfile, updatingProfile } = storeToRefs(useUserStore());
 <template>
   <main>
     <h1>User Profile</h1>
-    <section v-if="hasProfile">
-      <ProfileComponent />
-    </section>
-    <section v-else-if="updatingProfile">
+    <section v-if="updatingProfile">
       <EditProfileForm />
+    </section>
+    <section v-else-if="hasProfile">
+      <ProfileComponent />
     </section>
     <section v-else>
       <CreateProfileForm />
