@@ -52,7 +52,7 @@ async function back() {
     </div>
 
     <button type="button" @click="back" class="pure-button-primary pure-button" style="margin-right: 10px">Cancel</button>
-    <button type="button" @click="update" class="pure-button-primary pure-button">Update Profile</button>
+    <button type="button" @click="update" class="pure-button-primary pure-button">Update</button>
   </form>
 </template>
 
