@@ -53,6 +53,26 @@ export const useUserStore = defineStore(
       resetStore();
     };
 
+    const createProfile = async (name: string, contact: string, bio: string) => {
+      await fetchy("api/profile", "POST", {
+        body: { name, contact, bio },
+      });
+    };
+
+    const getProfile = async () => {
+      await fetchy("api/profile", "GET");
+    };
+
+    const updateProfile = async (name: string, contact: string, bio: string) => {
+      await fetchy("api/profile", "PATCH", {
+        body: { name, contact, bio },
+      });
+    };
+
+    const deleteProfile = async () => {
+      await fetchy("api/profile", "DELETE");
+    };
+
     return {
       currentUsername,
       isLoggedIn,
