@@ -56,14 +56,6 @@ export const useUserStore = defineStore(
       resetStore();
     };
 
-    const createProfile = async (name: string, contact: string, bio: string) => {
-      await fetchy("api/profile", "POST", {
-        body: { name, contact, bio },
-      });
-
-      await getProfile();
-    };
-
     const getProfile = async () => {
       try {
         const profileData = await fetchy("api/profile", "GET");
@@ -71,20 +63,6 @@ export const useUserStore = defineStore(
       } catch {
         profile.value = null;
       }
-    };
-
-    const updateProfile = async (name: string, contact: string, bio: string) => {
-      await fetchy("api/profile", "PATCH", {
-        body: { name, contact, bio },
-      });
-
-      await getProfile();
-    };
-
-    const deleteProfile = async () => {
-      await fetchy("api/profile", "DELETE");
-
-      profile.value = null;
     };
 
     return {
@@ -98,10 +76,7 @@ export const useUserStore = defineStore(
       updateUserUsername,
       updateUserPassword,
       deleteUser,
-      createProfile,
       getProfile,
-      updateProfile,
-      deleteProfile,
     };
   },
   { persist: true },
