@@ -2,12 +2,16 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Authing, Friending, Posting, Sessioning } from "./app";
+import { Authing, Friending, Itemizing, Messaging, Posting, Profiling, Sessioning, Tracking } from "./app";
+import { ItemStatus } from "./concepts/itemizing";
 import { PostOptions } from "./concepts/posting";
 import { SessionDoc } from "./concepts/sessioning";
+import { GoalStatus } from "./concepts/tracking";
 import Responses from "./responses";
 
 import { z } from "zod";
+import { NotAllowedError, NotFoundError } from "./concepts/errors";
+import { NotADraftError } from "./concepts/messaging";
 
 /**
  * Web server routes for the app. Implements synchronizations between concepts.
@@ -152,6 +156,232 @@ class Routes {
     const fromOid = (await Authing.getUserByUsername(from))._id;
     return await Friending.rejectRequest(fromOid, user);
   }
+
+  // Routes for creating, deleting, and updating user tasks
+
+  @Router.get("/tasks")
+  @Router.validate(z.object({ worker: z.string().optional() }))
+  async getTasks(worker?: string) {
+    let tasks;
+
+    if (worker) {
+      const id = (await Authing.getUserByUsername(worker))._id;
+      tasks = await Itemizing.getByCreator(id);
+    } else {
+      tasks = await Itemizing.getItems();
+    }
+
+    return tasks;
+  }
+
+  @Router.post("/tasks")
+  async createTask(session: SessionDoc, title: string, description: string) {
+    const user = Sessioning.getUser(session);
+
+    await Itemizing.assertValidItemDetails(title, description);
+
+    return await Itemizing.create(user, title, description, "in-progress");
+  }
+
+  @Router.patch("/tasks/:id")
+  async updateTask(session: SessionDoc, id: string, title?: string, description?: string, status?: ItemStatus) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    await Itemizing.assertCreatorIsUser(oid, user);
+
+    await Itemizing.assertValidStatus(status);
+
+    return await Itemizing.update(oid, title, description, status);
+  }
+
+  @Router.delete("/tasks/:id")
+  async deleteTask(session: SessionDoc, id: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    await Itemizing.assertCreatorIsUser(oid, user);
+    return await Itemizing.delete(oid);
+  }
+
+  // Routes for creating, deleting, and updating user profiles
+
+  @Router.get("/profile")
+  async getProfile(session: SessionDoc) {
+    const user = Sessioning.getUser(session);
+    await Profiling.assertProfileExists(user);
+
+    return await Profiling.viewProfile(user);
+  }
+
+  @Router.post("/profile")
+  async createProfile(session: SessionDoc, name: string, contact?: string, bio?: string) {
+    const user = Sessioning.getUser(session);
+    await Profiling.assertProfileDoesNotExist(user);
+
+    return await Profiling.create(user, name, contact, bio);
+  }
+
+  @Router.delete("/profile")
+  async deleteProfile(session: SessionDoc) {
+    const user = Sessioning.getUser(session);
+    await Profiling.assertProfileExists(user);
+
+    return await Profiling.delete(user);
+  }
+
+  @Router.patch("/profile")
+  async updateProfile(session: SessionDoc, name?: string, contact?: string, bio?: string) {
+    const user = Sessioning.getUser(session);
+    await Profiling.assertProfileExists(user);
+
+    return await Profiling.update(user, name, contact, bio);
+  }
+
+  // Routes for creating, deleting, and updating user goals
+
+  @Router.post("/goals")
+  async createGoal(session: SessionDoc, title: string, due: string, description?: string) {
+    const executor = Sessioning.getUser(session);
+
+    const parsedDueDate: Date = new Date(due);
+
+    return await Tracking.create(executor, title, parsedDueDate, description);
+  }
+
+  @Router.get("/goals/pending")
+  async getPending(session: SessionDoc) {
+    const executor = Sessioning.getUser(session);
+    return await Tracking.viewStatus(executor, "pending");
+  }
+
+  @Router.get("/goals/complete")
+  async getComplete(session: SessionDoc) {
+    const executor = Sessioning.getUser(session);
+    return await Tracking.viewStatus(executor, "complete");
+  }
+
+  @Router.get("/goals/pastdue")
+  async getPastDue(session: SessionDoc) {
+    const executor = Sessioning.getUser(session);
+    return await Tracking.viewStatus(executor, "past due");
+  }
+
+  @Router.patch("/goals/:id")
+  async updateGoal(session: SessionDoc, id: string, title?: string, description?: string, status?: GoalStatus, due?: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+
+    await Tracking.assertExecutorIsUser(oid, user);
+
+    let parsedDueDate;
+
+    if (due) {
+      parsedDueDate = new Date(due);
+    } else {
+      parsedDueDate = (await Tracking.viewOneGoal(oid))?.due;
+    }
+
+    return await Tracking.edit(oid, title, description, status, parsedDueDate);
+  }
+
+  // Routes for creating, editing, sending, and unsending messages
+
+  @Router.post("/messages")
+  async writeMessage(session: SessionDoc, contactUser: string, message: string) {
+    const sender = Sessioning.getUser(session);
+    const contactID = (await Authing.getUserByUsername(contactUser))._id;
+
+    return await Messaging.draft(sender, contactID, message);
+  }
+
+  @Router.get("/messages/drafts")
+  async readDrafts(session: SessionDoc) {
+    const sender = Sessioning.getUser(session);
+
+    return await Messaging.readDrafts(sender);
+  }
+
+  @Router.get("/messages/sent")
+  async readSent(session: SessionDoc, contactUser: string) {
+    const sender = Sessioning.getUser(session);
+    const contactID = (await Authing.getUserByUsername(contactUser))._id;
+
+    return await Messaging.readSent(sender, contactID);
+  }
+
+  @Router.get("/messages/received")
+  async readReceived(session: SessionDoc, contactUser: string) {
+    const receiver = Sessioning.getUser(session);
+    const contactID = (await Authing.getUserByUsername(contactUser))._id;
+
+    return await Messaging.readReceived(receiver, contactID);
+  }
+
+  @Router.patch("/messages/send/:id")
+  async sendMessage(session: SessionDoc, id: string) {
+    const userID = Sessioning.getUser(session);
+    const messageID = await new ObjectId(id);
+
+    const messageObj = await Messaging.read(userID, messageID);
+
+    if (!messageObj) throw new NotAllowedError(`Message with id ${id} does not exist.`);
+
+    await Messaging.assertUserIsSender(userID, messageID);
+
+    if (!messageObj.draft) throw new NotADraftError(messageID);
+
+    return await Messaging.send(messageID, userID, messageObj.to);
+  }
+
+  @Router.patch("/messages")
+  async editMessage(session: SessionDoc, id: string, contact?: string, message?: string) {
+    const userID = Sessioning.getUser(session);
+    const messageID = new ObjectId(id);
+
+    const messageObj = await Messaging.read(userID, messageID);
+
+    if (!messageObj) {
+      throw new NotFoundError(`Message with ID ${id} does not exist.`);
+    }
+
+    await Messaging.assertUserIsSender(userID, messageID);
+
+    const isSent = messageObj.sent;
+
+    if (isSent && contact) {
+      throw new NotAllowedError(`Cannot edit the contact of a sent message.`);
+    } else if (isSent) {
+      return await Messaging.editSent(messageID, message);
+    } else {
+      const contactID = new ObjectId(contact);
+      return await Messaging.editDraft(messageID, message, contactID);
+    }
+  }
+
+  @Router.delete("/messages")
+  async deleteMessage(session: SessionDoc, id: string) {
+    const userID = Sessioning.getUser(session);
+    const messageID = new ObjectId(id);
+
+    await Messaging.assertSenderOrReceiver(userID, messageID);
+
+    const messageObj = await Messaging.read(userID, messageID);
+
+    if (!messageObj) {
+      throw new NotFoundError(`Message with ID ${id} does not exist.`);
+    }
+
+    await Messaging.assertUserIsSender(userID, messageID);
+
+    const isSent = messageObj.sent;
+
+    if (isSent) {
+      return await Messaging.deleteSent(userID, messageID);
+    } else {
+      return await Messaging.deleteDraft(userID, messageID);
+    }
+  }
+
+  // Routes for creating, editing, and deleting preferences
 }
 
 /** The web app. */
