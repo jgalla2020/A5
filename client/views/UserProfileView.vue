@@ -1,14 +1,21 @@
-<script>
+<script setup lang="ts">
+import ProfileComponent from "@/components/Profile/ProfileComponent.vue";
+import CreateProfileForm from "@/components/Profile/CreateProfileForm.vue";
+
 import { useUserStore } from "@/stores/user";
 import { storeToRefs } from "pinia";
+
+const { hasProfile } = storeToRefs(useUserStore());
 </script>
 
 <template>
   <main>
-    <h1>Profile Page</h1>
-    <section>
-      <h1></h1>
-      <h1></h1>
+    <h1>User Profile</h1>
+    <section v-if="hasProfile">
+      <ProfileComponent />
+    </section>
+    <section v-else>
+      <CreateProfileForm />
     </section>
   </main>
 </template>
