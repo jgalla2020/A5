@@ -7,11 +7,14 @@ export const useUserStore = defineStore(
   "user",
   () => {
     const currentUsername = ref("");
+    const profile = ref(null);
 
     const isLoggedIn = computed(() => currentUsername.value !== "");
+    const hasProfile = computed(() => profile.value !== null);
 
     const resetStore = () => {
       currentUsername.value = "";
+      profile.value = null;
     };
 
     const createUser = async (username: string, password: string) => {
@@ -57,25 +60,37 @@ export const useUserStore = defineStore(
       await fetchy("api/profile", "POST", {
         body: { name, contact, bio },
       });
+
+      await getProfile();
     };
 
     const getProfile = async () => {
-      await fetchy("api/profile", "GET");
+      try {
+        const profileData = await fetchy("api/profile", "GET");
+        profile.value = profileData;
+      } catch {
+        profile.value = null;
+      }
     };
 
     const updateProfile = async (name: string, contact: string, bio: string) => {
       await fetchy("api/profile", "PATCH", {
         body: { name, contact, bio },
       });
+
+      await getProfile();
     };
 
     const deleteProfile = async () => {
       await fetchy("api/profile", "DELETE");
+
+      profile.value = null;
     };
 
     return {
       currentUsername,
       isLoggedIn,
+      hasProfile,
       createUser,
       loginUser,
       updateSession,
