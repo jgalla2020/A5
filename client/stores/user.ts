@@ -83,6 +83,10 @@ export const useUserStore = defineStore(
       updateUserUsername,
       updateUserPassword,
       deleteUser,
+      createProfile,
+      getProfile,
+      updateProfile,
+      deleteProfile,
     };
   },
   { persist: true },
