@@ -5,11 +5,7 @@ import { fetchy } from "../../utils/fetchy";
 import { useUserStore } from "@/stores/user";
 import { storeToRefs } from "pinia";
 
-const { currentProfile, updatingProfile } = storeToRefs(useUserStore());
-
-const name = currentProfile.name;
-const contact = currentProfile.contact;
-const bio = currentProfile.bio;
+const { updatingProfile } = storeToRefs(useUserStore());
 
 const { getProfile } = useUserStore();
 
@@ -22,11 +18,6 @@ const updateProfile = async (name: string, contact: string, bio: string) => {
     return;
   }
 };
-
-async function update() {
-  await updateProfile(name.value, contact.value, bio.value);
-  await getProfile();
-}
 
 async function back() {
   updatingProfile.value = false;
@@ -52,7 +43,6 @@ async function back() {
     </div>
 
     <button type="button" @click="back" class="pure-button-primary pure-button" style="margin-right: 10px">Cancel</button>
-    <button type="button" @click="update" class="pure-button-primary pure-button">Update</button>
   </form>
 </template>
 
